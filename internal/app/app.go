@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -238,8 +239,20 @@ func serveFileHandler(ctx iris.Context) {
 	ctx.ServeFile(file)
 }
 
+func serveAssetsFileHandler(ctx iris.Context) {
+	f := ctx.Params().Get("f")
+	file := MdDir + "/" + f
+	ctx.ServeFile(file)
+}
+
 func articleHandler(ctx iris.Context) {
 	f := getActiveNav(ctx)
+	regx := regexp.MustCompile(`.*[\.jpg|\.jpeg|\.gif|\.png|\.webp]$`)
+	if regx.MatchString(f) {
+		// log.Printf("serveAssetsFileHandler - %s", f)
+		serveAssetsFileHandler(ctx)
+		return
+	}
 
 	if utils.IsInSlice(IgnoreFile, f) {
 		return
