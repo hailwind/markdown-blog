@@ -1,3 +1,28 @@
+.article-title {
+    color-scheme: dark;
+    -ms-text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%;
+    margin: 0;
+    color: #c9d1d9;
+    background-color: #1c1f2b;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    font-size: 32px;
+    text-align: center;
+    line-height: 1.5;
+    word-wrap: break-word
+}
+.article-title hr {
+    box-sizing: content-box;
+    overflow: hidden;
+    background: 0 0;
+    border-bottom: 1px solid #21262d;
+    height: .1em;
+    padding: 0;
+    margin: 24px 0;
+    background-color: #30363d;
+    border: 0
+}
+
 .markdown-body {
     color-scheme: dark;
     -ms-text-size-adjust: 100%;
@@ -938,4 +963,37 @@
 
 .markdown-body ::-webkit-calendar-picker-indicator {
     filter: invert(50%)
+}
+
+/* search */
+.page-inner .articles {
+    line-height: 2em;
+}
+.page-inner .articles  li{
+    list-style: none;
+    margin-top: 10px;
+}
+.page-inner .articles  li a{
+    color:#f4f4f5;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.page-inner .articles  .description{
+    color:#f4f4f591;
+}
+
+.pager-container{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+
+.pager-container a{
+    color:#58a6ff;
+}
+
+.pager-container span{
+    color: #58a6ff;
 }

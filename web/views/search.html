@@ -1,0 +1,28 @@
+{{if .Data}}
+<div class="pager-container">关键词: {{range .Data.Words}}<span><a href="/search?keyword={{.}}">{{.}}</span></a>{{end}}</div>
+<ul class="articles">
+    {{range .Data.Documents}}
+    <li class="chapter">
+        <a href="{{.Document.Path}}">
+           {{.Document.Title}} (ID: {{.Id}} Score: {{.Score}})
+        </a>
+    </li>
+    <div class="description">
+        {{.Summary}}
+    </div>
+    {{end}}
+</ul>
+<div class="pager-container">
+    <span>
+        共{{.Data.Total}}篇
+    </span>
+    <span>
+    共{{.Data.PageCount}}页
+    </span>
+    <span>
+    第{{.Data.Page}}页
+    </span>
+    {{if .Prev}}<a href="/search?keyword={{.Keyword}}&page={{.Prev}}">上一页</a>{{end}}
+    {{if .Next}}<a href="/search?keyword={{.Keyword}}&page={{.Next}}">下一页</a>{{end}}
+</div>
+{{end}}

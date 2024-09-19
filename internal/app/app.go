@@ -1,9 +1,12 @@
 package app
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -39,7 +42,7 @@ var (
 	LogsDir    = "cache/logs/"
 	TocPrefix  = "[toc]"
 	IgnoreFile = []string{`favicon.ico`, `.DS_Store`, `.gitignore`, `README.md`}
-	IgnorePath = []string{`.git`}
+	IgnorePath = []string{`.git`, `assets`}
 	Cache      time.Duration
 	Analyzer   types.Analyzer
 	Gitalk     types.Gitalk
@@ -49,6 +52,7 @@ var (
 const DefaultPort = 5006
 
 func RunWeb(ctx *cli.Context) error {
+	go RunIndex(ctx)
 	initParams(ctx)
 
 	app := iris.New()
@@ -92,6 +96,7 @@ func RunWeb(ctx *cli.Context) error {
 
 	app.Favicon("./favicon.ico")
 	app.HandleDir("/static", getStatic())
+	app.Get("/search", searchHandler)
 	app.Get("/{f:path}", iris.Cache(Cache), articleHandler)
 	app.Get(fmt.Sprintf("/%s/{f:path}", FDir), serveFileHandler)
 
@@ -247,7 +252,7 @@ func serveAssetsFileHandler(ctx iris.Context) {
 
 func articleHandler(ctx iris.Context) {
 	f := getActiveNav(ctx)
-	regx := regexp.MustCompile(`.*[\.jpg|\.jpeg|\.gif|\.png|\.webp]$`)
+	regx := regexp.MustCompile(`.*\.(jpeg|jpg|pjpg|gif|png|webp|svg)$`)
 	if regx.MatchString(f) {
 		// log.Printf("serveAssetsFileHandler - %s", f)
 		serveAssetsFileHandler(ctx)
@@ -275,7 +280,8 @@ func articleHandler(ctx iris.Context) {
 	}
 	tmp := strings.Split(f, "/")
 	title := tmp[len(tmp)-1]
-	ctx.ViewData("Title", title+" - "+Title)
+	ctx.ViewData("Title", Title)
+	ctx.ViewData("ArticleTitle", title)
 	ctx.ViewData("Article", mdToHtml(bytes))
 
 	ctx.View("index.html")
@@ -309,4 +315,111 @@ func mdToHtml(content []byte) template.HTML {
 	html := p.SanitizeBytes(unsafe)
 
 	return template.HTML(string(html))
+}
+
+func SubStr(str string, length int) string {
+	if length < 1 {
+		return ""
+	}
+	var runes []rune
+	for i, r := range str {
+		if i+1 > length {
+			break
+		}
+		runes = append(runes, r)
+	}
+	return string(runes)
+}
+
+type Search struct {
+	Query string `json:"query"`
+	Page  int    `json:"page"`
+	Limit int    `json:"limit"`
+	Order string `json:"order"`
+}
+
+type SMetadata struct {
+	Path   string `json:"path"`
+	Title  string `json:"title"`
+	Md5sum string `json:"md5sum"`
+}
+
+type SDocument struct {
+	Id       int64     `json:"id"`
+	Text     string    `json:"text"`
+	Document SMetadata `json:"document"`
+	Score    int       `json:"score"`
+}
+
+func (d *SDocument) Summary() string {
+	if len(d.Text) >= 380 {
+		return SubStr(d.Text, 380)
+	} else {
+		return d.Text
+	}
+}
+
+type SData struct {
+	Time      float32     `json:"time"`
+	Total     int         `json:"total"`
+	PageCount int         `json:"pageCount"`
+	Page      int         `json:"page"`
+	Limit     int         `json:"limit"`
+	Words     []string    `json:"words"`
+	Documents []SDocument `json:"documents"`
+}
+
+type SMessage struct {
+	State   bool   `json:"state"`
+	Message string `json:"message"`
+	Data    SData  `json:"data"`
+}
+
+func searchHandler(ctx iris.Context) {
+	ctx.ViewData("Title", Title)
+	query := ctx.URLParam("keyword")
+	page := 1
+	pageStr := ctx.URLParam("page")
+	if pageStr != "" {
+		page, _ = strconv.Atoi(pageStr)
+	}
+	limit := 10
+	limitStr := ctx.URLParam("limit")
+	if limitStr != "" {
+		limit, _ = strconv.Atoi(limitStr)
+	}
+	search := Search{
+		Query: query,
+		Page:  page,
+		Limit: limit,
+		Order: "desc",
+	}
+	if data, err := json.Marshal(search); err == nil {
+		body := bytes.NewBuffer(data)
+		if resp, err := http.Post(gofoundQuery, "application/json", body); err == nil {
+			defer resp.Body.Close()
+			if resp.StatusCode == 200 {
+				dec := json.NewDecoder(resp.Body)
+				msg := SMessage{}
+				if err := dec.Decode(&msg); err == nil {
+					if msg.Message == "success" {
+						ctx.ViewData("Data", msg.Data)
+						ctx.ViewData("Keyword", query)
+						if msg.Data.Page > 1 {
+							ctx.ViewData("Prev", msg.Data.Page-1)
+						}
+						if msg.Data.PageCount > msg.Data.Page {
+							ctx.ViewData("Next", msg.Data.Page+1)
+						}
+						log.Printf("Total: %d", msg.Data.Total)
+					}
+				}
+			}
+		} else {
+			log.Printf("post err: %s", err)
+		}
+	} else {
+		log.Printf("error: %s", err)
+	}
+	ctx.View("search.html")
 }

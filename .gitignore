@@ -7,3 +7,4 @@ config/*
 internal/bindata/*
 !config/config.yml.tmp
 certs/*
+idx.db

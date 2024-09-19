@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
+	"log"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/gaowei-space/markdown-blog/internal/app"
@@ -16,6 +20,7 @@ import (
 
 var (
 	MdDir                = "md/"
+	IdxDb                = "idx.db"
 	Title                = "Blog"
 	AppVersion           = "1.1.1"
 	BuildDate, GitCommit string
@@ -31,16 +36,52 @@ func main() {
 	cliApp.Version, _ = utils.FormatAppVersion(AppVersion, GitCommit, BuildDate)
 	cliApp.Commands = getCommands()
 	cliApp.Flags = append(cliApp.Flags, []cli.Flag{}...)
-	cliApp.Run(os.Args)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	if isHelp() {
+		// 仅打印帮助信息，无需后台
+		cliApp.RunContext(ctx, os.Args)
+	} else {
+		go cliApp.RunContext(ctx, os.Args)
+		// 优雅关机
+		quit := make(chan os.Signal, 1)
+		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+		<-quit
+		log.Println("Shutdown Markdown-Blog Server ...")
+		cancel()
+		ticker := time.NewTicker(time.Second)
+		<-ticker.C
+	}
+}
+
+func isHelp() bool {
+	for _, arg := range os.Args {
+		if arg == "-h" || arg == "-help" || arg == "--help" {
+			return true
+		}
+	}
+	return false
 }
 
 func getCommands() []*cli.Command {
-	web := webCommand()
+	flags := flags()
+	web := webCommand(flags)
 
 	return []*cli.Command{web}
 }
 
-func webCommand() *cli.Command {
+func webCommand(flags []cli.Flag) *cli.Command {
+	web := cli.Command{
+		Name:   "web",
+		Usage:  "Run blog web server",
+		Action: app.RunWeb,
+		Flags:  flags,
+		Before: altsrc.InitInputSourceWithContext(flags, altsrc.NewYamlSourceFromFlagFunc("config")),
+	}
+	return &web
+}
+
+func flags() []cli.Flag {
 	commonFlags := []cli.Flag{
 		&cli.StringFlag{
 			Name:  "config",
@@ -52,6 +93,17 @@ func webCommand() *cli.Command {
 			Aliases: []string{"d"},
 			Value:   MdDir,
 			Usage:   "Markdown files dir",
+		}),
+		altsrc.NewStringFlag(&cli.StringFlag{
+			Name:    "idxdb",
+			Aliases: []string{"f"},
+			Value:   IdxDb,
+			Usage:   "Fulltext Index Database File",
+		}),
+		altsrc.NewBoolFlag(&cli.BoolFlag{
+			Name:  "forceidx",
+			Value: false,
+			Usage: "Forece to ReIndex documents",
 		}),
 		altsrc.NewStringFlag(&cli.StringFlag{
 			Name:    "title",
@@ -162,14 +214,5 @@ func webCommand() *cli.Command {
 	}
 
 	flags = append(flags, ignoreFlags...)
-
-	web := cli.Command{
-		Name:   "web",
-		Usage:  "Run blog web server",
-		Action: app.RunWeb,
-		Flags:  flags,
-		Before: altsrc.InitInputSourceWithContext(flags, altsrc.NewYamlSourceFromFlagFunc("config")),
-	}
-
-	return &web
+	return flags
 }

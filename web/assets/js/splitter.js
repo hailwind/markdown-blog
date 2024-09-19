@@ -141,4 +141,20 @@
         $summary.css({ position: 'absolute' });
         $bookBody.css({ position: 'absolute' });
     }
+    function search(keyword) {
+        console.log('search', keyword);
+        location.href = `/search?keyword=${keyword}`;
+    }
+    $('#search-input').on('keyup', function (e) {
+        // ENTER EMIT SEARCH
+        if (event.keyCode === 13) {
+            search(e.target.value);
+        }
+    });
+    $('#search-input').on('focus', function (e) {
+        e.target.value = e.target.placeholder || ''
+    });
+    $('#search-btn').on('click', function () {
+        search($('#search-input').val());
+    });
 })();
